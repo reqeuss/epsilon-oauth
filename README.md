@@ -69,7 +69,7 @@ The response should come from Epsilon's registration API. Confirm the supported 
 
 1. Register the app through `POST /api/v1/apps`.
 2. Store the returned client ID and secret securely on the application's backend.
-3. Redirect the browser to `https://epsilon-social.oauth.reqeuss.com/oauth/authorize?response_type=code&client_id=...&redirect_uri=...&scope=read&state=...`.
+3. Redirect the browser to `https://epsilon-social.oauth.reqeuss.com/oauth/authorize?response_type=code&client_id=...&redirect_uri=...&scope=read&state=...`. If you need to skip the local preview, use the same query string with `/oauth/authorize/direct` instead.
 4. Review the preview, then click **Continue to official login**. The browser moves to Epsilon's own authorization endpoint.
 5. Epsilon should return to the registered callback with the authorization code and the original `state`.
 6. Exchange the code server-side via `POST /oauth/token`. Use PKCE when supported by the client and upstream server.
@@ -115,7 +115,7 @@ If this gateway or a fix would be useful upstream, open an issue or pull request
 - `GET /.well-known/oauth-authorization-server` — OAuth metadata
 - `GET /.well-known/openid-configuration` — metadata alias
 - `POST /api/v1/apps` — register an app at Epsilon
-- `GET /oauth/authorize` — branded preview before official Epsilon login
+- `GET /oauth/authorize` — branded preview before official Epsilon login\n- `GET /oauth/authorize/direct` — direct redirect to the official Epsilon authorization endpoint, preserving OAuth query parameters
 - `POST /oauth/token` — exchange a code at Epsilon
 - `POST /oauth/revoke` — revoke a token at Epsilon
 - `GET /oauth/userinfo` — request the current account from Epsilon
