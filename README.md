@@ -5,6 +5,7 @@ A lightweight, independent Cloudflare Worker gateway for Epsilon Social OAuth. T
 ## What it does
 
 - Displays a branded authorization preview at `GET /oauth/authorize`.
+- Rejects duplicated OAuth parameters, unsafe callback URLs, malformed PKCE challenges, and PKCE methods other than `S256` before forwarding the request.
 - Shows the OAuth client ID, requested scope values, callback URL, and whether `state` / PKCE parameters were supplied.
 - Continues to Epsilon's official `https://epsilon.social/oauth/authorize` endpoint for the real login and final consent.
 - Proxies app registration, token exchange, revocation, and account verification to Epsilon endpoints.
