@@ -119,13 +119,13 @@ function authorizationPage(requestUrl) {
   } catch (_) { problems.push("redirect_uri invalide"); }
   if (params.has("code_challenge_method") && !params.has("code_challenge")) problems.push("code_challenge_method fourni sans code_challenge");
   if (params.has("code_challenge") && !params.has("code_challenge_method")) problems.push("code_challenge_method manquant (utilise S256)");
-  if (codeChallenge && !/^[A-Za-z0-9._~-]{43,128}$/.test(codeChallenge)) problems.push("code_challenge PKCE invalide");
+  if (codeChallenge && !/^[A-Za-z0-9_-]{43}$/.test(codeChallenge)) problems.push("code_challenge PKCE S256 invalide (43 caractères base64url attendus)");
   if (codeChallengeMethod && codeChallengeMethod !== "S256") problems.push("Seule la méthode PKCE S256 est acceptée");
   if (problems.length) {
     return page("Requête invalide", '<section class="card"><div class="card-head"><div class="app-icon" aria-hidden="true">!</div><div class="eyebrow">Vérification de sécurité</div><h1>Impossible de continuer</h1><p class="lead">La demande reçue contient des paramètres incomplets ou invalides.</p></div><div class="card-body"><div class="notice error"><span class="notice-icon">!</span><span>' + esc(problems.join(" · ")) + '</span></div><div class="actions"><a class="cta" href="https://epsilon.social" rel="noreferrer">Ouvrir Epsilon Social ↗</a><a class="secondary" href="/">Retour au portail</a></div></div></section>', 400);
   }
   const target = new URL("/oauth/authorize", EPSILON);
-  for (const name of ["response_type", "client_id", "redirect_uri", "scope", "state", "code_challenge", "code_challenge_method", "nonce", "prompt"]) {
+  for (const name of ["response_type", "client_id", "redirect_uri", "scope", "state", "code_challenge", "code_challenge_method", "response_mode", "nonce", "prompt"]) {
     if (params.has(name)) target.searchParams.set(name, params.get(name));
   }
   const scopeItems = scope.split(/[\s+]+/).filter(Boolean);
