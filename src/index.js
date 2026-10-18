@@ -134,7 +134,11 @@ function authorizationPage(requestUrl) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname.startsWith("/assets/") && env && env.ASSETS) return env.ASSETS.fetch(request);
+    if (url.pathname.startsWith("/assets/") && env && env.ASSETS) {
+      const asset = await env.ASSETS.fetch(request);
+      if (asset.status !== 404) return asset;
+      if (url.pathname !== "/assets/epsilon-logo.svg") return asset;
+    }
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors() });
     if (url.pathname === "/assets/epsilon-logo.svg" && request.method === "GET") return new Response(LOGO_SVG, { status: 200, headers: { "content-type": "image/svg+xml; charset=utf-8", "cache-control": "public, max-age=3600", "x-content-type-options": "nosniff", "access-control-allow-origin": "*" } });
     if (url.pathname === "/health" && request.method === "GET") return json({ service: "Epsilon OAuth Gateway", version: VERSION, status: "online", upstream: EPSILON, clientStorage: "none", routes: ["POST /api/v1/apps", "GET /oauth/authorize", "POST /oauth/token", "POST /oauth/revoke", "GET /oauth/userinfo"] }, 200, cors());
