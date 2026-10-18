@@ -2,11 +2,3 @@ name = "epsilon-oauth"
 main = "src/index.js"
 compatibility_date = "2026-10-18"
 workers_dev = true
-
-[[kv_namespaces]]
-binding = "OAUTH_KV"
-id = "4690bea9a2f445ec824982b02c75b409"
-
-[vars]
-EPSILON_ISSUER_URL = "https://epsilon.social"
-EPSILON_REDIRECT_URI = "https://epsilon-social.oauth.reqeuss.com/oauth/callback"
