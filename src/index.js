@@ -41,19 +41,32 @@ function authorizationPage(requestUrl) {
   const codeChallenge = params.get("code_challenge") || "";
   const codeChallengeMethod = params.get("code_challenge_method") || "";
   const problems = [];
+  const singleValueParams = ["client_id", "redirect_uri", "response_type", "scope", "state", "code_challenge", "code_challenge_method"];
+  for (const name of singleValueParams) {
+    if (params.getAll(name).length > 1) problems.push("paramètre dupliqué : " + name);
+  }
   if (!clientId) problems.push("client_id manquant");
   if (!redirectUri) problems.push("redirect_uri manquant");
   if (responseType !== "code") problems.push("response_type doit être code");
   let parsed = null;
   try {
     parsed = new URL(redirectUri);
-    if (parsed.protocol !== "https:" && parsed.hostname !== "localhost" && parsed.hostname !== "127.0.0.1") problems.push("redirect_uri doit utiliser HTTPS");
+    const localHost = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]";
+    if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && localHost)) problems.push("redirect_uri doit utiliser HTTPS (HTTP est autorisé uniquement en local)");
+    if (parsed.username || parsed.password) problems.push("redirect_uri ne doit pas contenir d’identifiants");
+    if (parsed.hash) problems.push("redirect_uri ne doit pas contenir de fragment");
   } catch (_) { problems.push("redirect_uri invalide"); }
+  if (params.has("code_challenge_method") && !params.has("code_challenge")) problems.push("code_challenge_method fourni sans code_challenge");
+  if (params.has("code_challenge") && !params.has("code_challenge_method")) problems.push("code_challenge_method manquant (utilise S256)");
+  if (codeChallenge && (!/^[A-Za-z0-9._~-]{43,128}$/.test(codeChallenge))) problems.push("code_challenge PKCE invalide");
+  if (codeChallengeMethod && codeChallengeMethod !== "S256") problems.push("seule la méthode PKCE S256 est acceptée");
   if (problems.length) {
     return page("Requête OAuth invalide", '<div class="eyebrow">Vérification de la demande</div><h1>Impossible de continuer.</h1><p>La demande OAuth est incomplète ou contient des paramètres invalides.</p><div class="notice">' + esc(problems.join(" · ")) + '</div><p>Reviens à l’application qui a lancé la connexion et vérifie sa configuration OAuth.</p><a class="cta" href="https://epsilon.social">Ouvrir Epsilon Social ↗</a>', 400);
   }
   const target = new URL("/oauth/authorize", EPSILON);
-  params.forEach(function (value, key) { target.searchParams.append(key, value); });
+  for (const name of ["response_type", "client_id", "redirect_uri", "scope", "state", "code_challenge", "code_challenge_method", "nonce", "prompt"]) {
+    if (params.has(name)) target.searchParams.set(name, params.get(name));
+  }
   const scopeItems = scope.split(/[\s+]+/).filter(Boolean);
   const scopeMarkup = scopeItems.length ? '<div class="pills">' + scopeItems.map(function (item) { return '<span class="pill">' + esc(item) + '</span>'; }).join("") + '</div>' : '<p style="margin:6px 0 0">Aucun scope explicitement indiqué.</p>';
   const redirectDisplay = parsed.origin + parsed.pathname + parsed.search;
