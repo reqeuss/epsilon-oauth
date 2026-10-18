@@ -123,7 +123,7 @@ function authorizationPage(requestUrl) {
     if (params.has(name)) target.searchParams.set(name, params.get(name));
   }
   const scopeItems = scope.split(/[\s+]+/).filter(Boolean);
-  const scopeMarkup = scopeItems.length ? '<div class="permissions">' + scopeItems.map(function (item) { return '<span class="permission">' + esc(item) + '</span>'; }).join("") + '</div>' : '<span>Aucune permission indiquée</span>';
+  const scopeMarkup = scopeItems.length ? '<span class="permissions">' + scopeItems.map(function (item) { return '<span class="permission">' + esc(item) + '</span>'; }).join("") + '</span>' : '<span>Aucune permission indiquée</span>';
   const redirectDisplay = parsed.origin + parsed.pathname + parsed.search;
   const security = '<span style="color:' + (state ? '#7ee0bd' : '#ffbd80') + '">' + (state ? '✓ État de sécurité fourni' : '⚠ Aucun état de sécurité') + '</span>';
   const pkce = codeChallenge ? '✓ Protection PKCE S256' : 'Non détectée';
