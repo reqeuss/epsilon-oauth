@@ -16,13 +16,35 @@ A lightweight, independent Cloudflare Worker gateway for Epsilon Social OAuth. T
 
 The Worker stores no app registry, client secrets, authorization codes, user sessions, passwords, or access tokens. App registration and the returned client credentials are handled by Epsilon's API. Keep any returned `client_secret` on your application's backend; never expose it in frontend code.
 
-## Deploy
+## Configure `EPSILON_ACCESS_TOKEN`
 
-1. In Cloudflare, set the Worker custom domain to `epsilon-social.oauth.reqeuss.com`.
-2. Run `npm install`.
-3. Run `npm run check`.
-4. Run `npm run deploy`.
-5. Open `https://epsilon-social.oauth.reqeuss.com/health`.
+The Worker reads `EPSILON_ACCESS_TOKEN` from the Cloudflare Worker environment. It is used server-side for `POST /api/v1/apps` and `GET /api/v1/apps/verify_credentials`; it is never returned to callers. Do not put the real token in source code, `wrangler.toml`, frontend JavaScript, or a committed `.env` file.
+
+### Cloudflare production secret
+
+```bash
+npx wrangler secret put EPSILON_ACCESS_TOKEN
+```
+
+Paste the token when prompted. Then deploy:
+
+```bash
+npm install
+npm run check
+npm run deploy
+```
+
+You can also add it in **Cloudflare Dashboard → Workers & Pages → epsilon-oauth → Settings → Variables and Secrets → Add → Secret**, with the name exactly `EPSILON_ACCESS_TOKEN`.
+
+### Local development
+
+Create a local `.dev.vars` file (Wrangler reads this automatically):
+
+```dotenv
+EPSILON_ACCESS_TOKEN=replace_with_your_token
+```
+
+`.dev.vars` is ignored by Git. Never commit the real token. Then run `npm run dev`.
 
 No KV namespace is required for this stateless gateway.
 
