@@ -148,7 +148,25 @@ export default {
     if (url.pathname === "/assets/epsilon-logo.svg" && request.method === "GET") return new Response(LOGO_SVG, { status: 200, headers: { "content-type": "image/svg+xml; charset=utf-8", "cache-control": "public, max-age=3600", "x-content-type-options": "nosniff", "access-control-allow-origin": "*" } });
     if (url.pathname === "/health" && request.method === "GET") return json({ service: "Epsilon OAuth Gateway", version: VERSION, status: "online", upstream: EPSILON, clientStorage: "none", routes: ["POST /api/v1/apps", "GET /api/v1/apps/verify_credentials", "GET /oauth/authorize", "POST /oauth/token", "POST /oauth/revoke", "GET|POST /oauth/userinfo"] }, 200, cors());
     if (url.pathname === "/" && request.method === "GET") return page("Passerelle OAuth", '<section class="card home-card"><div class="eyebrow">Epsilon Social · OAuth 2.0</div><h1>Connecte tes applications en toute clarté.</h1><p class="lead">Ce portail accompagne les demandes d’autorisation des applications compatibles avec Epsilon Social.</p><div class="home-grid"><div class="home-item"><div class="home-item-icon">↗</div><div><strong>Connexion officielle</strong><span>La connexion et le consentement final restent sur epsilon.social.</span></div></div><div class="home-item"><div class="home-item-icon">⌁</div><div><strong>Permissions visibles</strong><span>Consulte l’identifiant de l’application, les permissions et l’adresse de retour avant de continuer.</span></div></div><div class="home-item"><div class="home-item-icon">✓</div><div><strong>Pas de mot de passe ici</strong><span>Cette passerelle ne collecte ni mot de passe, ni session Epsilon, ni jeton utilisateur.</span></div></div></div><a class="cta" href="https://epsilon.social" rel="noreferrer">Découvrir Epsilon Social ↗</a><a class="secondary" href="/health">État du service</a></section>');
-    if ((url.pathname === "/.well-known/oauth-authorization-server" || url.pathname === "/.well-known/openid-configuration") && request.method === "GET") return json({ issuer: url.origin, authorization_endpoint: url.origin + "/oauth/authorize", token_endpoint: url.origin + "/oauth/token", app_registration_endpoint: url.origin + "/api/v1/apps", revocation_endpoint: url.origin + "/oauth/revoke", userinfo_endpoint: url.origin + "/oauth/userinfo", response_types_supported: ["code"], grant_types_supported: ["authorization_code"], code_challenge_methods_supported: ["S256"] }, 200, cors());
+    if (url.pathname === "/.well-known/oauth-authorization-server" && request.method === "GET") {
+      try {
+        const upstream = await fetch(EPSILON + "/.well-known/oauth-authorization-server", { headers: { accept: "application/json" }, redirect: "error" });
+        if (!upstream.ok) return json({ error: "metadata_unavailable", upstream_status: upstream.status }, 502, cors());
+        const metadata = await upstream.json();
+        return json({
+          ...metadata,
+          issuer: url.origin,
+          authorization_endpoint: url.origin + "/oauth/authorize",
+          token_endpoint: url.origin + "/oauth/token",
+          revocation_endpoint: url.origin + "/oauth/revoke",
+          userinfo_endpoint: url.origin + "/oauth/userinfo",
+          app_registration_endpoint: url.origin + "/api/v1/apps"
+        }, 200, cors());
+      } catch (_) {
+        return json({ error: "metadata_unavailable", message: "Impossible de récupérer les métadonnées OAuth d’Epsilon Social." }, 502, cors());
+      }
+    }
+    if (url.pathname === "/.well-known/openid-configuration" && request.method === "GET") return json({ error: "unsupported_configuration", message: "Cette passerelle expose OAuth 2.0, pas OpenID Connect." }, 404, cors());
     if (url.pathname === "/api/v1/apps" && request.method === "POST") {
       if (!env || !env.EPSILON_ACCESS_TOKEN) return json({ error: "server_configuration_error", message: "EPSILON_ACCESS_TOKEN manquant. Configure-le comme secret Cloudflare ou dans .dev.vars en local." }, 503, cors());
       return proxy(request, "/api/v1/apps", env, true);
