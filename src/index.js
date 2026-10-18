@@ -84,7 +84,7 @@ export default {
       const body = `<h1>Connectez vos applications à Epsilon.</h1>
 <p>Un point d’entrée indépendant pour démarrer une authentification sur Epsilon Social. La connexion et le consentement se déroulent sur le site Epsilon lui-même.</p>
 <div class="panel"><div class="label">URI de redirection configurée</div><div class="value">${(env.EPSILON_REDIRECT_URI || DEFAULT_CALLBACK).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div></div>
-${configured ? '<p>La configuration de l’application est présente. Pour lancer une connexion, le client doit fournir un paramètre <code>state</code> imprévisible afin de protéger le retour OAuth.</p><a class="cta" href="/login?state=REPLACE_WITH_A_RANDOM_STATE_VALUE">Continuer vers Epsilon <span aria-hidden="true">↗</span></a>' : '<p>Le service répond correctement, mais il manque la variable serveur <code>EPSILON_CLIENT_ID</code>. Aucun secret ne doit être ajouté au code source.</p>'}
+${configured ? '<p>La configuration de l’application est présente. L’application cliente doit appeler <code>/login</code> avec son propre paramètre <code>state</code> imprévisible, puis vérifier ce même état dans son callback.</p><div class="panel"><div class="label">Point d’entrée OAuth</div><div class="value">/login?state=VALEUR_ALEATOIRE_GENEREE_PAR_LE_CLIENT</div></div>' : '<p>Le service répond correctement, mais il manque la variable serveur <code>EPSILON_CLIENT_ID</code>. Aucun secret ne doit être ajouté au code source.</p>'}
 <div class="foot">Ce projet ne prétend pas être un fournisseur OAuth officiel ni créer une session à votre place. L’application cliente doit vérifier <code>state</code> et échanger le code sur son serveur.</div>`;
       return page("Connexion", body);
     }
