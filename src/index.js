@@ -72,7 +72,7 @@ async function proxy(request, path, env, useAppToken = false) {
   const target = new URL(path, EPSILON);
   target.search = incoming.search;
   const headers = new Headers(request.headers);
-  ["host", "cf-connecting-ip", "x-forwarded-for", "connection", "content-length"].forEach(function (name) { headers.delete(name); });
+  ["host", "cookie", "cf-connecting-ip", "cf-ray", "cf-visitor", "x-forwarded-for", "x-real-ip", "x-forwarded-host", "x-forwarded-proto", "connection", "content-length", "accept-encoding", "origin", "referer"].forEach(function (name) { headers.delete(name); });
   if (useAppToken && request.method !== "OPTIONS" && request.method !== "HEAD") {
     if (!request.headers.get("content-type")) headers.delete("content-type");
     if (headers.has("authorization")) headers.delete("authorization");
@@ -80,7 +80,12 @@ async function proxy(request, path, env, useAppToken = false) {
   }
   const init = { method: request.method, headers, redirect: "manual" };
   if (!["GET", "HEAD"].includes(request.method)) init.body = await request.arrayBuffer();
-  const upstream = await fetch(target.toString(), init);
+  let upstream;
+  try {
+    upstream = await fetch(target.toString(), init);
+  } catch (_) {
+    return json({ error: "upstream_unavailable", message: "Epsilon Social ne répond pas pour le moment." }, 502, cors());
+  }
   const out = new Headers(upstream.headers);
   Object.entries(cors()).forEach(function (entry) { out.set(entry[0], entry[1]); });
   out.set("cache-control", "no-store");
@@ -141,7 +146,7 @@ export default {
     }
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors() });
     if (url.pathname === "/assets/epsilon-logo.svg" && request.method === "GET") return new Response(LOGO_SVG, { status: 200, headers: { "content-type": "image/svg+xml; charset=utf-8", "cache-control": "public, max-age=3600", "x-content-type-options": "nosniff", "access-control-allow-origin": "*" } });
-    if (url.pathname === "/health" && request.method === "GET") return json({ service: "Epsilon OAuth Gateway", version: VERSION, status: "online", upstream: EPSILON, clientStorage: "none", routes: ["POST /api/v1/apps", "GET /oauth/authorize", "POST /oauth/token", "POST /oauth/revoke", "GET /oauth/userinfo"] }, 200, cors());
+    if (url.pathname === "/health" && request.method === "GET") return json({ service: "Epsilon OAuth Gateway", version: VERSION, status: "online", upstream: EPSILON, clientStorage: "none", routes: ["POST /api/v1/apps", "GET /api/v1/apps/verify_credentials", "GET /oauth/authorize", "POST /oauth/token", "POST /oauth/revoke", "GET|POST /oauth/userinfo"] }, 200, cors());
     if (url.pathname === "/" && request.method === "GET") return page("Passerelle OAuth", '<section class="card home-card"><div class="eyebrow">Epsilon Social · OAuth 2.0</div><h1>Connecte tes applications en toute clarté.</h1><p class="lead">Ce portail accompagne les demandes d’autorisation des applications compatibles avec Epsilon Social.</p><div class="home-grid"><div class="home-item"><div class="home-item-icon">↗</div><div><strong>Connexion officielle</strong><span>La connexion et le consentement final restent sur epsilon.social.</span></div></div><div class="home-item"><div class="home-item-icon">⌁</div><div><strong>Permissions visibles</strong><span>Consulte l’identifiant de l’application, les permissions et l’adresse de retour avant de continuer.</span></div></div><div class="home-item"><div class="home-item-icon">✓</div><div><strong>Pas de mot de passe ici</strong><span>Cette passerelle ne collecte ni mot de passe, ni session Epsilon, ni jeton utilisateur.</span></div></div></div><a class="cta" href="https://epsilon.social" rel="noreferrer">Découvrir Epsilon Social ↗</a><a class="secondary" href="/health">État du service</a></section>');
     if ((url.pathname === "/.well-known/oauth-authorization-server" || url.pathname === "/.well-known/openid-configuration") && request.method === "GET") return json({ issuer: url.origin, authorization_endpoint: url.origin + "/oauth/authorize", token_endpoint: url.origin + "/oauth/token", app_registration_endpoint: url.origin + "/api/v1/apps", revocation_endpoint: url.origin + "/oauth/revoke", userinfo_endpoint: url.origin + "/oauth/userinfo", response_types_supported: ["code"], grant_types_supported: ["authorization_code"], code_challenge_methods_supported: ["S256"] }, 200, cors());
     if (url.pathname === "/api/v1/apps" && request.method === "POST") {
@@ -151,13 +156,14 @@ export default {
     if (url.pathname === "/oauth/authorize" && request.method === "GET") return authorizationPage(request.url);
     if (url.pathname === "/oauth/token" && request.method === "POST") return proxy(request, "/oauth/token", env);
     if (url.pathname === "/oauth/revoke" && request.method === "POST") return proxy(request, "/oauth/revoke", env);
-    if (url.pathname === "/oauth/userinfo" && request.method === "GET") return proxy(request, "/api/v1/accounts/verify_credentials", env);
+    if (url.pathname === "/oauth/userinfo" && ["GET", "POST"].includes(request.method)) return proxy(request, "/oauth/userinfo", env);
     if (url.pathname === "/api/v1/apps/verify_credentials" && request.method === "GET") {
       if (!env || !env.EPSILON_ACCESS_TOKEN) return json({ error: "server_configuration_error", message: "EPSILON_ACCESS_TOKEN manquant. Configure-le comme secret Cloudflare ou dans .dev.vars en local." }, 503, cors());
       return proxy(request, "/api/v1/apps/verify_credentials", env, true);
     }
     if (["/api/v1/apps", "/oauth/token", "/oauth/revoke"].includes(url.pathname)) return json({ error: "method_not_allowed" }, 405, { ...cors(), allow: "POST" });
-    if (["/oauth/authorize", "/oauth/userinfo", "/api/v1/apps/verify_credentials"].includes(url.pathname)) return json({ error: "method_not_allowed" }, 405, { ...cors(), allow: "GET" });
+    if (["/oauth/authorize", "/api/v1/apps/verify_credentials"].includes(url.pathname)) return json({ error: "method_not_allowed" }, 405, { ...cors(), allow: "GET" });
+    if (url.pathname === "/oauth/userinfo") return json({ error: "method_not_allowed" }, 405, { ...cors(), allow: "GET, POST, OPTIONS" });
     return json({ error: "not_found", message: "Route non prise en charge par la passerelle." }, 404, cors());
   }
 };
