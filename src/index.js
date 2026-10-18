@@ -1,4 +1,4 @@
-const DEFAULT_CALLBACK = "https://antibotwall.reqeuss.com/oauth/epsilonsocial/callback";
+const DEFAULT_CALLBACK = "https://example.com/oauth/callback";
 const VERSION = "0.2.0";
 
 function json(data, status = 200, extra = {}) {
@@ -112,8 +112,8 @@ ${configured ? '<p>La configuration de l’application est présente. L’applic
       let callback;
       try {
         callback = new URL(redirectUri);
-        if (callback.protocol !== "https:" || callback.hostname !== "antibotwall.reqeuss.com") {
-          return json({ error: "invalid_server_configuration", error_description: "EPSILON_REDIRECT_URI must be the registered HTTPS callback." }, 500);
+        if (callback.protocol !== "https:" || callback.username || callback.password) {
+          return json({ error: "invalid_server_configuration", error_description: "EPSILON_REDIRECT_URI must be a valid HTTPS callback without embedded credentials." }, 500);
         }
       } catch {
         return json({ error: "invalid_server_configuration" }, 500);
