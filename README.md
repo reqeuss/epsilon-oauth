@@ -76,6 +76,38 @@ The response should come from Epsilon's registration API. Confirm the supported 
 
 Use a cryptographically random `state` and verify it on the callback. Never trust an unverified callback or a scope just because the preview displays it.
 
+## Troubleshooting: Content Security Policy (CSP)
+
+If the browser reports errors such as:
+
+```text
+Content-Security-Policy: ... script-src ... refused to execute an inline script
+```
+
+first identify which host returned the HTML and CSP header. This gateway's preview HTML is served by the Worker; after the user clicks **Continue to Epsilon**, the browser loads `https://epsilon.social/oauth/authorize`, whose CSP is controlled by the Epsilon server. The gateway cannot change that response's CSP from its own Worker, and the gateway intentionally does not strip or weaken Epsilon's security headers.
+
+The upstream Epsilon repository defines its production policy in `config/initializers/content_security_policy.rb` and tests the expected script hashes in `spec/requests/content_security_policy_spec.rb`. It calculates hashes for the inline scripts `theme-selection.js`, `epsilon-in-app-context.js`, and `epsilon-locale-refresh.js`. If the browser reports a different hash, possible causes include:
+
+- the HTML contains inline script content that does not match the hashes in the response header;
+- the deployed application is serving mismatched versions of its layout, inline scripts, or CSP configuration;
+- a browser extension or another client-side tool injected a script into the page.
+
+### Safe diagnostic steps
+
+1. Open DevTools → **Network**, reload the authorization page, and select the main document request to `epsilon.social`.
+2. Inspect the **Response Headers** and note the actual `Content-Security-Policy` header.
+3. Inspect the response HTML and identify the exact inline script associated with the violation. Check whether the script is part of the deployed Epsilon source or was injected by an extension; test in a clean/private browser profile with extensions disabled.
+4. Compare the deployed code with the upstream CSP configuration and inline-script files. Rebuild and deploy a consistent version, then run the project's CSP tests.
+5. If the problem reproduces on the official instance, report the affected URL, browser console message, CSP header, and the matching source files to the Epsilon maintainers: [epsilon-social/epsilon](https://github.com/epsilon-social/epsilon).
+
+Do **not** add arbitrary hashes, enable `'unsafe-inline'` in production, or remove the CSP header as a workaround. Hashes only authorize exact script contents, and weakening the policy can expose users to script injection. A fix belongs in the upstream Epsilon deployment when the rejected script is served by `epsilon.social`.
+
+## Upstream project and attribution
+
+This gateway is an independent integration and is not endorsed by or affiliated with the Epsilon Social maintainers. Epsilon Social source code is available at [github.com/epsilon-social/epsilon](https://github.com/epsilon-social/epsilon). The upstream repository is licensed under **GNU Affero General Public License v3.0 (AGPL-3.0)**; review its [LICENSE](https://github.com/epsilon-social/epsilon/blob/main/LICENSE) before redistributing or incorporating upstream code. Assets copied from the upstream project are documented in `public/assets/README.md`. Epsilon Social names and logos remain their respective owners' marks.
+
+If this gateway or a fix would be useful upstream, open an issue or pull request with a reproducible report and a minimal patch. Do not imply that maintainers have accepted or endorsed this project unless they explicitly confirm it.
+
 ## Endpoints
 
 - `GET /` — gateway landing page
