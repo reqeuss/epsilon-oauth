@@ -2,3 +2,7 @@ name = "epsilon-oauth"
 main = "src/index.js"
 compatibility_date = "2026-10-18"
 workers_dev = true
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
