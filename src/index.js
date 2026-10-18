@@ -92,6 +92,22 @@ async function proxy(request, path, env, useAppToken = false) {
   out.set("x-content-type-options", "nosniff");
   return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: out });
 }
+function directAuthorization(requestUrl) {
+  // Minimal fallback: no local preview or JavaScript, only a fixed-origin redirect.
+  // Epsilon remains responsible for login, consent, redirect URI validation and CSP.
+  const incoming = new URL(requestUrl);
+  const target = new URL("/oauth/authorize", EPSILON);
+  target.search = incoming.search;
+  return new Response(null, {
+    status: 302,
+    headers: {
+      "location": target.toString(),
+      "cache-control": "no-store",
+      "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff"
+    }
+  });
+}
 function authorizationPage(requestUrl) {
   const incoming = new URL(requestUrl);
   const params = incoming.searchParams;
@@ -171,7 +187,7 @@ export default {
       if (!env || !env.EPSILON_ACCESS_TOKEN) return json({ error: "server_configuration_error", message: "EPSILON_ACCESS_TOKEN manquant. Configure-le comme secret Cloudflare ou dans .dev.vars en local." }, 503, cors());
       return proxy(request, "/api/v1/apps", env, true);
     }
-    if (url.pathname === "/oauth/authorize" && request.method === "GET") return authorizationPage(request.url);
+    if (url.pathname === "/oauth/authorize/direct" && request.method === "GET") return directAuthorization(request.url);\n    if (url.pathname === "/oauth/authorize" && request.method === "GET") return authorizationPage(request.url);
     if (url.pathname === "/oauth/token" && request.method === "POST") return proxy(request, "/oauth/token", env);
     if (url.pathname === "/oauth/revoke" && request.method === "POST") return proxy(request, "/oauth/revoke", env);
     if (url.pathname === "/oauth/userinfo" && ["GET", "POST"].includes(request.method)) return proxy(request, "/oauth/userinfo", env);
