@@ -15,12 +15,21 @@ function page(title, body, status = 200) {
 function cors(headers = {}) {
   return { "access-control-allow-origin": "*", "access-control-allow-headers": "Authorization, Content-Type, Accept", "access-control-allow-methods": "GET, POST, OPTIONS", "access-control-expose-headers": "Content-Type", "vary": "Origin", ...headers };
 }
-async function proxy(request, path) {
+async function proxy(request, path, useAppToken = false) {
   const incoming = new URL(request.url);
   const target = new URL(path, EPSILON);
   target.search = incoming.search;
   const headers = new Headers(request.headers);
   ["host", "cf-connecting-ip", "x-forwarded-for", "connection", "content-length"].forEach(function (name) { headers.delete(name); });
+  // The app-level access token is only used for app-management endpoints.
+  // It is never exposed to callers or forwarded to OAuth user/token routes.
+  if (useAppToken && request.method !== "OPTIONS" && request.method !== "HEAD") {
+    if (!request.headers.get("content-type")) headers.delete("content-type");
+    if (request.headers.has("authorization")) headers.delete("authorization");
+    if (typeof EPSILON_ACCESS_TOKEN !== "undefined" && EPSILON_ACCESS_TOKEN) {
+      headers.set("authorization", "Bearer " + EPSILON_ACCESS_TOKEN);
+    }
+  }
   const init = { method: request.method, headers, redirect: "manual" };
   if (!["GET", "HEAD"].includes(request.method)) init.body = await request.arrayBuffer();
   const upstream = await fetch(target.toString(), init);
@@ -80,12 +89,18 @@ export default {
     if (url.pathname === "/health" && request.method === "GET") return json({ service: "Epsilon OAuth Gateway", version: VERSION, status: "online", upstream: EPSILON, clientStorage: "none", routes: ["POST /api/v1/apps", "GET /oauth/authorize", "POST /oauth/token", "POST /oauth/revoke", "GET /oauth/userinfo"] }, 200, cors());
     if (url.pathname === "/" && request.method === "GET") return page("Passerelle OAuth", '<div class="eyebrow">OAuth · Epsilon Social</div><h1>Une connexion claire. Un consentement officiel.</h1><p>Une passerelle indépendante pour relier des applications à Epsilon Social. Examine la demande ici, puis connecte-toi et confirme les autorisations directement sur epsilon.social.</p><div class="panel"><div class="row"><span class="label">Enregistrement</span><div class="value">Les applications sont enregistrées par l’API Epsilon.</div></div><div class="row"><span class="label">Connexion</span><div class="value">La page de connexion officielle reste sur epsilon.social.</div></div><div class="row"><span class="label">Confidentialité</span><div class="value">Aucun compte, mot de passe, secret client ou jeton stocké dans ce Worker.</div></div></div><a class="cta" href="https://epsilon.social">Ouvrir Epsilon Social ↗</a><a class="secondary" href="/health">État du service</a>');
     if ((url.pathname === "/.well-known/oauth-authorization-server" || url.pathname === "/.well-known/openid-configuration") && request.method === "GET") return json({ issuer: url.origin, authorization_endpoint: url.origin + "/oauth/authorize", token_endpoint: url.origin + "/oauth/token", app_registration_endpoint: url.origin + "/api/v1/apps", revocation_endpoint: url.origin + "/oauth/revoke", userinfo_endpoint: url.origin + "/oauth/userinfo", response_types_supported: ["code"], grant_types_supported: ["authorization_code"], code_challenge_methods_supported: ["S256"] }, 200, cors());
-    if (url.pathname === "/api/v1/apps" && request.method === "POST") return proxy(request, "/api/v1/apps");
+    if (url.pathname === "/api/v1/apps" && request.method === "POST") {
+      if (!EPSILON_ACCESS_TOKEN) return json({ error: "server_configuration_error", message: "EPSILON_ACCESS_TOKEN manquant dans les secrets du Worker." }, 503, cors());
+      return proxy(request, "/api/v1/apps", true);
+    }
     if (url.pathname === "/oauth/authorize" && request.method === "GET") return authorizationPage(request.url);
     if (url.pathname === "/oauth/token" && request.method === "POST") return proxy(request, "/oauth/token");
     if (url.pathname === "/oauth/revoke" && request.method === "POST") return proxy(request, "/oauth/revoke");
     if (url.pathname === "/oauth/userinfo" && request.method === "GET") return proxy(request, "/api/v1/accounts/verify_credentials");
-    if (url.pathname === "/api/v1/apps/verify_credentials" && request.method === "GET") return proxy(request, "/api/v1/apps/verify_credentials");
+    if (url.pathname === "/api/v1/apps/verify_credentials" && request.method === "GET") {
+      if (!EPSILON_ACCESS_TOKEN) return json({ error: "server_configuration_error", message: "EPSILON_ACCESS_TOKEN manquant dans les secrets du Worker." }, 503, cors());
+      return proxy(request, "/api/v1/apps/verify_credentials", true);
+    }
     if (["/api/v1/apps", "/oauth/token", "/oauth/revoke"].includes(url.pathname)) return json({ error: "method_not_allowed" }, 405, { ...cors(), allow: "POST" });
     if (["/oauth/authorize", "/oauth/userinfo", "/api/v1/apps/verify_credentials"].includes(url.pathname)) return json({ error: "method_not_allowed" }, 405, { ...cors(), allow: "GET" });
     return json({ error: "not_found", message: "Route non prise en charge par la passerelle." }, 404, cors());
