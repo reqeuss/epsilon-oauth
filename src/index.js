@@ -1,161 +1,37 @@
-const DEFAULT_CALLBACK = "https://example.com/oauth/callback";
-const VERSION = "0.2.0";
-
-function json(data, status = 200, extra = {}) {
-  return new Response(JSON.stringify(data, null, 2), {
-    status,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store",
-      "x-content-type-options": "nosniff",
-      "referrer-policy": "no-referrer",
-      ...extra,
-    },
-  });
-}
-
-function page(title, body, status = 200) {
-  return new Response(`<!doctype html>
-<html lang="fr">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="dark"><meta name="theme-color" content="#101114">
-<title>${title} · Epsilon OAuth</title>
-<style>
-:root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#101114;color:#f4f4f5}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:28px;background:radial-gradient(ellipse at 50% 0%,#27282f 0,transparent 48%),#101114}
-main{width:min(100%,620px);border:1px solid #34353d;background:rgba(22,23,27,.94);border-radius:26px;padding:clamp(25px,6vw,48px);box-shadow:0 28px 100px #0006}
-.brand{display:flex;align-items:center;gap:12px;font-weight:750;letter-spacing:-.03em;font-size:19px}
-.mark{display:grid;place-items:center;width:42px;height:42px;border-radius:14px;background:#b9ff5c;color:#14160f;font-weight:900;font-size:22px}
-.eyebrow{color:#b9ff5c;font-size:12px;letter-spacing:.16em;text-transform:uppercase;font-weight:800;margin:34px 0 12px}
-h1{font-size:clamp(32px,7vw,48px);line-height:1.04;letter-spacing:-.055em;margin:0 0 18px}
-p{color:#b4b5be;line-height:1.7;margin:0 0 18px}
-.panel{border:1px solid #35363e;border-radius:15px;padding:16px;margin:24px 0;background:#191a1f}
-.label{font-size:11px;color:#92939e;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px}
-.value{font-size:13px;overflow-wrap:anywhere;color:#e7e7eb}
-a.cta{display:flex;justify-content:center;align-items:center;gap:10px;width:100%;padding:15px 18px;background:#b9ff5c;color:#11140b;border-radius:13px;font-weight:800;text-decoration:none;margin-top:24px}
-a.cta:hover{background:#ccff8a}a{color:#b9ff5c}
-.foot{font-size:12px;color:#777984;margin-top:26px;line-height:1.6}
-.pill{display:inline-flex;align-items:center;gap:7px;border:1px solid #3b3c43;border-radius:999px;padding:7px 10px;font-size:12px;color:#c7c8ce}
-.dot{width:7px;height:7px;background:#b9ff5c;border-radius:50%}
-</style></head>
-<body><main>
-<div class="brand"><span class="mark">ε</span><span>Epsilon OAuth</span><span class="pill"><span class="dot"></span>Service indépendant</span></div>
-<div class="eyebrow">Authentification · OAuth 2.0</div>
-${body}
-<div class="foot">Projet non officiel, indépendant d’Epsilon Social. Vos identifiants secrets ne doivent jamais être publiés dans le navigateur ou dans le dépôt GitHub.</div>
-</main></body></html>`, {
-    status,
-    headers: {
-      "content-type": "text/html; charset=utf-8",
-      "cache-control": "no-store",
-      "x-content-type-options": "nosniff",
-      "referrer-policy": "no-referrer",
-      "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
-    },
-  });
-}
-
-function safeState(value) {
-  return typeof value === "string" && value.length >= 16 && value.length <= 512 && /^[A-Za-z0-9._~-]+$/.test(value);
-}
-
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-    if (request.method !== "GET" && request.method !== "HEAD") {
-      return json({ error: "method_not_allowed" }, 405, { allow: "GET, HEAD" });
-    }
-
-    if (url.pathname === "/health") {
-      return json({
-        service: "Epsilon OAuth",
-        version: VERSION,
-        status: "online",
-        mode: "epsilon-social-oauth-redirect",
-        configured: Boolean(env.EPSILON_CLIENT_ID),
-        callback_uri: env.EPSILON_REDIRECT_URI || DEFAULT_CALLBACK,
-        note: "This service starts an Epsilon Social OAuth flow. The callback and code-to-token exchange are handled by the configured client application.",
-      });
-    }
-
-    if (url.pathname === "/") {
-      const configured = Boolean(env.EPSILON_CLIENT_ID);
-      const body = `<h1>Connectez vos applications à Epsilon.</h1>
-<p>Un point d’entrée indépendant pour démarrer une authentification sur Epsilon Social. La connexion et le consentement se déroulent sur le site Epsilon lui-même.</p>
-<div class="panel"><div class="label">URI de redirection configurée</div><div class="value">${(env.EPSILON_REDIRECT_URI || DEFAULT_CALLBACK).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div></div>
-${configured ? '<p>La configuration de l’application est présente. L’application cliente doit appeler <code>/login</code> avec son propre paramètre <code>state</code> imprévisible, puis vérifier ce même état dans son callback.</p><div class="panel"><div class="label">Point d’entrée OAuth</div><div class="value">/login?state=VALEUR_ALEATOIRE_GENEREE_PAR_LE_CLIENT</div></div>' : '<p>Le service répond correctement, mais il manque la variable serveur <code>EPSILON_CLIENT_ID</code>. Aucun secret ne doit être ajouté au code source.</p>'}
-<div class="foot">Ce projet ne prétend pas être un fournisseur OAuth officiel ni créer une session à votre place. L’application cliente doit vérifier <code>state</code> et échanger le code sur son serveur.</div>`;
-      return page("Connexion", body);
-    }
-
-    if (url.pathname === "/login") {
-      const clientId = env.EPSILON_CLIENT_ID;
-      if (!clientId) return json({ error: "server_misconfigured", error_description: "EPSILON_CLIENT_ID is not configured." }, 503);
-      const state = url.searchParams.get("state");
-      if (!safeState(state)) {
-        return page("État requis", `<h1>Une vérification est nécessaire.</h1><p>La demande de connexion doit contenir un paramètre <code>state</code> aléatoire généré par l’application cliente. Retournez dans l’application qui vous a envoyé ici et réessayez.</p><a class="cta" href="/">Retour</a>`, 400);
-      }
-
-      const issuer = (env.EPSILON_ISSUER_URL || "https://epsilon.social").replace(/\/$/, "");
-      let issuerUrl;
-      try {
-        issuerUrl = new URL(issuer);
-        if (issuerUrl.protocol !== "https:" || issuerUrl.hostname !== "epsilon.social") {
-          return json({ error: "invalid_server_configuration", error_description: "EPSILON_ISSUER_URL must use https://epsilon.social." }, 500);
-        }
-      } catch {
-        return json({ error: "invalid_server_configuration" }, 500);
-      }
-
-      const redirectUri = env.EPSILON_REDIRECT_URI || DEFAULT_CALLBACK;
-      let callback;
-      try {
-        callback = new URL(redirectUri);
-        if (callback.protocol !== "https:" || callback.username || callback.password) {
-          return json({ error: "invalid_server_configuration", error_description: "EPSILON_REDIRECT_URI must be a valid HTTPS callback without embedded credentials." }, 500);
-        }
-      } catch {
-        return json({ error: "invalid_server_configuration" }, 500);
-      }
-
-      const authorize = new URL("/oauth/authorize", issuerUrl.origin);
-      authorize.searchParams.set("client_id", clientId);
-      authorize.searchParams.set("response_type", "code");
-      authorize.searchParams.set("redirect_uri", callback.toString());
-      authorize.searchParams.set("scope", "read");
-      authorize.searchParams.set("state", state);
-
-      const challenge = url.searchParams.get("code_challenge");
-      const method = url.searchParams.get("code_challenge_method");
-      if (challenge || method) {
-        if (!challenge || method !== "S256" || !/^[A-Za-z0-9_-]{43}$/.test(challenge)) {
-          return json({ error: "invalid_request", error_description: "PKCE requires a valid S256 code_challenge." }, 400);
-        }
-        authorize.searchParams.set("code_challenge", challenge);
-        authorize.searchParams.set("code_challenge_method", "S256");
-      }
-
-      return new Response(null, {
-        status: 302,
-        headers: {
-          location: authorize.toString(),
-          "cache-control": "no-store",
-          "referrer-policy": "no-referrer",
-          "x-content-type-options": "nosniff",
-        },
-      });
-    }
-
-    if (url.pathname === "/oauth/authorize" || url.pathname === "/oauth/token" || url.pathname === "/oauth/userinfo" ||
-        url.pathname === "/.well-known/oauth-authorization-server" || url.pathname === "/.well-known/openid-configuration") {
-      return json({
-        error: "not_an_oauth_provider",
-        error_description: "This project starts an OAuth login with Epsilon Social; it does not issue its own authorization codes or tokens.",
-        login_endpoint: url.origin + "/login",
-      }, 501);
-    }
-
-    return json({ error: "not_found" }, 404);
-  },
-};
+const VERSION = "1.0.0";
+const ISSUER = "https://epsilon.social";
+const TTL = { flow: 600, consent: 300, code: 60, token: 3600 };
+const CSS = 'body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:radial-gradient(ellipse at 50% 0%,#27282f,transparent 50%),#101114;color:#f4f4f5;font:16px Inter,system-ui,sans-serif}main{box-sizing:border-box;width:min(100%,620px);padding:clamp(24px,6vw,44px);border:1px solid #34353d;border-radius:24px;background:#16171bf5;box-shadow:0 25px 90px #0006}.brand{display:flex;align-items:center;gap:12px;font-weight:800}.mark{display:grid;place-items:center;width:42px;height:42px;border-radius:14px;background:#b9ff5c;color:#14160f;font-size:22px}h1{font-size:clamp(30px,6vw,44px);line-height:1.05;letter-spacing:-.05em;margin:32px 0 16px}p{color:#b4b5be;line-height:1.65}.panel{padding:16px;border:1px solid #35363e;border-radius:14px;background:#191a1f;margin:20px 0}.label{font-size:11px;color:#92939e;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px}.value{font-size:13px;overflow-wrap:anywhere}.cta,.secondary{display:block;width:100%;box-sizing:border-box;text-align:center;padding:14px;margin-top:10px;border:0;border-radius:12px;background:#b9ff5c;color:#11140b;font-weight:800;font-size:15px;text-decoration:none;cursor:pointer}.secondary{background:#282930;border:1px solid #41424a;color:#f4f4f5}.profile{display:flex;align-items:center;gap:14px}.avatar{width:56px;height:56px;object-fit:cover;border-radius:50%;background:#34353d}.muted,.foot{font-size:12px;color:#858691;line-height:1.6;margin-top:18px}.scope{padding:10px 0;border-bottom:1px solid #303139;font-size:14px}.scope:last-child{border:0}.scope b{color:#b9ff5c;margin-right:8px}a{color:#b9ff5c}';
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function json(v,s=200,h={}){return new Response(JSON.stringify(v),{status:s,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff","referrer-policy":"no-referrer","access-control-allow-origin":"*","access-control-allow-headers":"Authorization, Content-Type","access-control-allow-methods":"GET, POST, OPTIONS",...h}});}
+function page(title,body,s=200){return new Response('<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>'+esc(title)+' · Epsilon OAuth</title><style>'+CSS+'</style></head><body><main><div class="brand"><span class="mark">ε</span><span>Epsilon OAuth</span></div>'+body+'<div class="foot">Service indépendant et non officiel. Votre mot de passe Epsilon n’est jamais partagé avec l’application.</div></main></body></html>',{status:s,headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff","referrer-policy":"no-referrer","content-security-policy":"default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"}});}
+function err(t,m,s=400){return page(t,'<h1>'+esc(t)+'</h1><p>'+esc(m)+'</p><a class="cta" href="/">Retour</a>',s);}
+function rand(n=32){return btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(n)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");}
+async function sha(v){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");}
+function validState(s){return typeof s==="string"&&s.length>=16&&s.length<=512&&/^[A-Za-z0-9._~-]+$/.test(s);}
+function validUri(s){try{const u=new URL(s);return u.protocol==="https:"&&!u.username&&!u.password&&!u.hash;}catch{return false;}}
+function kv(env){if(!env.OAUTH_KV)throw Error("Le namespace Cloudflare KV OAUTH_KV n’est pas configuré.");return env.OAUTH_KV;}
+async function get(env,k){const v=await kv(env).get(k);if(!v)return null;try{return JSON.parse(v);}catch{return null;}}
+async function put(env,k,v,ttl){await kv(env).put(k,JSON.stringify(v),{expirationTtl:ttl});}
+function bearer(r){return (r.headers.get("authorization")||"").match(/^Bearer\s+(.+)$/i)?.[1]||"";}
+async function form(r){if((r.headers.get("content-type")||"").includes("application/json")){const o=await r.json();return new URLSearchParams(Object.entries(o).map(([k,v])=>[k,String(v)]));}return new URLSearchParams(await r.text());}
+function shape(raw){const u=raw?.data&&typeof raw.data==="object"?raw.data:raw?.user&&typeof raw.user==="object"?raw.user:raw;const id=u?.id??u?.sub??u?.user_id;if(id==null)throw Error("Le profil Epsilon ne contient aucun identifiant stable.");const pic=u.avatar_url??u.avatar??u.profile_image_url??u.image;return{sub:String(id),username:String(u.username??u.handle??u.preferred_username??u.name??id),name:String(u.name??u.display_name??u.username??u.handle??id),picture:typeof pic==="string"&&pic.startsWith("https://")?pic:null};}
+async function upstream(env,state){if(!env.EPSILON_CLIENT_ID||!env.EPSILON_CLIENT_SECRET||!env.EPSILON_REDIRECT_URI)throw Error("Configure EPSILON_CLIENT_ID, EPSILON_CLIENT_SECRET et EPSILON_REDIRECT_URI.");const u=new URL("/oauth/authorize",ISSUER);u.searchParams.set("client_id",env.EPSILON_CLIENT_ID);u.searchParams.set("response_type","code");u.searchParams.set("redirect_uri",env.EPSILON_REDIRECT_URI);u.searchParams.set("scope","read");u.searchParams.set("state",state);return u.toString();}
+async function exchange(env,code){const body=new URLSearchParams({grant_type:"authorization_code",code,client_id:env.EPSILON_CLIENT_ID,client_secret:env.EPSILON_CLIENT_SECRET,redirect_uri:env.EPSILON_REDIRECT_URI});const r=await fetch(ISSUER+"/oauth/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded","accept":"application/json"},body});const p=await r.json().catch(()=>({}));if(!r.ok||!p.access_token)throw Error("Échange du code Epsilon refusé (HTTP "+r.status+"). Vérifie les identifiants et le callback déclaré chez Epsilon.");const ur=await fetch(ISSUER+"/oauth/userinfo",{headers:{authorization:"Bearer "+p.access_token,accept:"application/json"}});const up=await ur.json().catch(()=>({}));if(!ur.ok)throw Error("Lecture du profil Epsilon refusée (HTTP "+ur.status+").");return shape(up);}
+function errorRedirect(uri,state,error){const u=new URL(uri);u.searchParams.set("error",error);u.searchParams.set("state",state);return Response.redirect(u.toString(),302);}
+export default {async fetch(request,env){
+const u=new URL(request.url);
+if(request.method==="OPTIONS")return new Response(null,{status:204,headers:{"access-control-allow-origin":"*","access-control-allow-headers":"Authorization, Content-Type","access-control-allow-methods":"GET, POST, OPTIONS"}});
+if(u.pathname==="/health")return json({service:"Epsilon OAuth",version:VERSION,status:"online",configured:Boolean(env.EPSILON_CLIENT_ID&&env.EPSILON_CLIENT_SECRET&&env.EPSILON_REDIRECT_URI&&env.OAUTH_KV),storage:Boolean(env.OAUTH_KV),features:["authorization code","PKCE S256","consent screen","userinfo","client registration"]});
+if(u.pathname==="/"&&request.method==="GET")return page("Connexion",'<h1>Une connexion. Des applications.</h1><p>Autorisez des applications tierces à accéder aux informations publiques de votre compte Epsilon Social, sans leur communiquer votre mot de passe.</p><div class="panel"><div class="scope"><b>✓</b>Consentement explicite</div><div class="scope"><b>✓</b>Codes temporaires à usage unique</div><div class="scope"><b>✓</b>PKCE S256</div><div class="scope"><b>✓</b>Jetons expirables</div></div><a class="cta" href="/.well-known/oauth-authorization-server">Documentation OAuth</a><p><a href="/health">État du service</a></p>');
+if(u.pathname==="/.well-known/oauth-authorization-server"||u.pathname==="/.well-known/openid-configuration")return json({issuer:u.origin,authorization_endpoint:u.origin+"/oauth/authorize",token_endpoint:u.origin+"/oauth/token",userinfo_endpoint:u.origin+"/oauth/userinfo",registration_endpoint:u.origin+"/admin/clients",response_types_supported:["code"],grant_types_supported:["authorization_code"],code_challenge_methods_supported:["S256"],token_endpoint_auth_methods_supported:["client_secret_post","client_secret_basic"],scopes_supported:["profile","read"]});
+if(u.pathname==="/admin/clients"&&request.method==="POST"){if(!env.OAUTH_ADMIN_SECRET||bearer(request)!==env.OAUTH_ADMIN_SECRET)return json({error:"unauthorized"},401);let x;try{x=await request.json();}catch{return json({error:"invalid_json"},400);}const name=String(x.name||"").trim().slice(0,80),uris=Array.isArray(x.redirect_uris)?x.redirect_uris:[];if(name.length<2||!uris.length||uris.length>10||uris.some(v=>!validUri(v)))return json({error:"invalid_client",error_description:"Nom et 1 à 10 redirect_uris HTTPS sans fragment requis."},400);const id="eps_"+rand(18),secret="epss_"+rand(32),client={client_id:id,secret_hash:await sha(secret),name,redirect_uris:[...new Set(uris)],created_at:new Date().toISOString()};await put(env,"client:"+id,client,31536000);return json({client_id:id,client_secret:secret,name,redirect_uris:client.redirect_uris,warning:"Conserve le client_secret maintenant : il ne sera affiché qu’une fois."},201);}
+if(u.pathname==="/oauth/authorize"&&request.method==="GET"){if(!env.OAUTH_KV)return json({error:"server_misconfigured",error_description:"Bind the OAUTH_KV namespace."},503);const id=u.searchParams.get("client_id")||"",uri=u.searchParams.get("redirect_uri")||"",state=u.searchParams.get("state")||"",scopes=(u.searchParams.get("scope")||"profile").split(/\s+/).filter(Boolean);if(u.searchParams.get("response_type")!=="code"||!validState(state)||!scopes.length||scopes.some(s=>!["profile","read"].includes(s)))return json({error:"invalid_request"},400);const client=await get(env,"client:"+id);if(!client||!client.redirect_uris.includes(uri)||!validUri(uri))return json({error:"invalid_client_or_redirect_uri"},400);const challenge=u.searchParams.get("code_challenge")||"",method=u.searchParams.get("code_challenge_method")||"";if((challenge&&(method!=="S256"||!/^[A-Za-z0-9_-]{43}$/.test(challenge)))||(method&&!challenge))return json({error:"invalid_code_challenge"},400);const rid=rand(),upState=rand();await put(env,"request:"+rid,{client_id:id,redirect_uri:uri,state,scope:scopes,code_challenge:challenge||null},TTL.flow);await put(env,"upstream:"+upState,{request_id:rid},TTL.flow);try{return Response.redirect(await upstream(env,upState),302);}catch(e){return err("Configuration incomplète",e.message,503);}}
+if(u.pathname==="/oauth/callback"&&request.method==="GET"){const state=u.searchParams.get("state")||"",code=u.searchParams.get("code")||"";if(!validState(state))return err("Connexion invalide","Le paramètre state est invalide.");const flow=await get(env,"upstream:"+state);if(!flow)return err("Connexion expirée","Recommence depuis l’application.");await kv(env).delete("upstream:"+state);const a=await get(env,"request:"+flow.request_id);if(!a)return err("Demande expirée","Recommence depuis l’application.");const client=await get(env,"client:"+a.client_id);if(!client)return err("Application introuvable","Cette application n’est plus enregistrée.",404);if(u.searchParams.has("error"))return errorRedirect(a.redirect_uri,a.state,"access_denied");if(!code)return errorRedirect(a.redirect_uri,a.state,"invalid_request");try{const user=await exchange(env,code),cid=rand();await put(env,"consent:"+cid,{request_id:flow.request_id,user},TTL.consent);const avatar=user.picture?'<img class="avatar" src="'+esc(user.picture)+'" alt="">':'<div class="avatar" style="display:grid;place-items:center">ε</div>';return page("Autorisation",'<h1>'+esc(client.name)+' veut accéder à votre compte.</h1><p>Vérifiez les informations avant d’autoriser cette application. Votre mot de passe Epsilon n’est jamais transmis.</p><div class="panel"><div class="profile">'+avatar+'<div><strong>'+esc(user.name)+'</strong><div class="muted">@'+esc(user.username)+'</div></div></div><div class="label" style="margin-top:18px">Compte Epsilon Social</div></div><div class="panel"><div class="label">Autorisations demandées</div>'+a.scope.map(s=>'<div class="scope"><b>✓</b>'+(s==="profile"?"Identifiant et profil public":"Informations publiques du compte")+'</div>').join("")+'</div><form method="post" action="/oauth/consent"><input type="hidden" name="consent_id" value="'+esc(cid)+'"><button class="cta" name="decision" value="allow">Autoriser l’application</button><button class="secondary" name="decision" value="deny">Refuser</button></form>');}catch(e){return err("Connexion Epsilon impossible",e.message,502);}}
+if(u.pathname==="/oauth/consent"&&request.method==="POST"){const d=await form(request),cid=d.get("consent_id")||"",c=await get(env,"consent:"+cid);if(!c||!/^[A-Za-z0-9_-]{30,50}$/.test(cid))return err("Demande expirée","Recommence la connexion.");await kv(env).delete("consent:"+cid);const a=await get(env,"request:"+c.request_id);if(!a)return err("Demande expirée","Recommence la connexion.");await kv(env).delete("request:"+c.request_id);if(d.get("decision")!=="allow")return errorRedirect(a.redirect_uri,a.state,"access_denied");const code=rand(32);await put(env,"code:"+code,{client_id:a.client_id,redirect_uri:a.redirect_uri,user:c.user,scope:a.scope,code_challenge:a.code_challenge},TTL.code);const target=new URL(a.redirect_uri);target.searchParams.set("code",code);target.searchParams.set("state",a.state);return Response.redirect(target.toString(),302);}
+if(u.pathname==="/oauth/token"&&request.method==="POST"){const d=await form(request),auth=request.headers.get("authorization")||"";let id=d.get("client_id")||"",secret=d.get("client_secret")||"";if(auth.startsWith("Basic ")){try{const raw=atob(auth.slice(6)),i=raw.indexOf(":");id=raw.slice(0,i);secret=raw.slice(i+1);}catch{return json({error:"invalid_client"},401);}}if(d.get("grant_type")!=="authorization_code")return json({error:"unsupported_grant_type"},400);const client=await get(env,"client:"+id);if(!client||!secret||await sha(secret)!==client.secret_hash)return json({error:"invalid_client"},401);const code=d.get("code")||"",grant=await get(env,"code:"+code);if(!grant||grant.client_id!==id||grant.redirect_uri!==(d.get("redirect_uri")||""))return json({error:"invalid_grant"},400);if(grant.code_challenge){const v=d.get("code_verifier")||"";if(v.length<43||v.length>128)return json({error:"invalid_grant",error_description:"PKCE verifier required."},400);const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v)),actual=btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");if(actual!==grant.code_challenge)return json({error:"invalid_grant"},400);}await kv(env).delete("code:"+code);const token=rand(32);await put(env,"token:"+await sha(token),{client_id:id,user:grant.user,scope:grant.scope,created_at:Date.now()},TTL.token);return json({access_token:token,token_type:"Bearer",expires_in:TTL.token,scope:grant.scope.join(" ")});}
+if(u.pathname==="/oauth/userinfo"&&request.method==="GET"){const token=bearer(request);if(!token)return json({error:"invalid_token"},401);const r=await get(env,"token:"+await sha(token));if(!r||Date.now()-r.created_at>TTL.token*1000)return json({error:"invalid_token"},401);return json(r.user);}
+if(u.pathname==="/oauth/revoke"&&request.method==="POST"){const d=await form(request),token=d.get("token")||"";if(token)await kv(env).delete("token:"+await sha(token));return new Response(null,{status:200,headers:{"cache-control":"no-store"}});}
+if(["/oauth/authorize","/oauth/token","/oauth/userinfo","/oauth/callback","/oauth/consent","/admin/clients"].includes(u.pathname))return json({error:"method_not_allowed"},405,{allow:"GET, POST"});
+return json({error:"not_found"},404);
+}};
