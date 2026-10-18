@@ -31,6 +31,20 @@ EPSILON_ISSUER_URL=https://epsilon.social
 EPSILON_REDIRECT_URI=https://example.com/oauth/callback
 ```
 
+### Secret de l'application Epsilon
+
+Quand le Worker implémentera l'échange du code OAuth côté serveur, ajoute le secret de l'application Epsilon sous le nom **`EPSILON_CLIENT_SECRET`**. Ne le mets jamais dans `wrangler.toml`, dans `.dev.vars` commité, dans le code côté navigateur ou dans GitHub.
+
+**Dans Cloudflare (lors du déploiement) :**
+1. Ouvre **Workers & Pages** et sélectionne le Worker Epsilon OAuth.
+2. Va dans **Settings → Variables and Secrets** (le libellé peut varier).
+3. Ajoute `EPSILON_CLIENT_SECRET`, colle la valeur du secret Epsilon et choisis le type **Secret**.
+4. Enregistre, puis redéploie si Cloudflare le demande.
+
+**En local avec Wrangler :** utilise un fichier `.dev.vars` non suivi par Git et ajoute `EPSILON_CLIENT_SECRET=ton_secret`. Vérifie que `.dev.vars` est dans `.gitignore`.
+
+> Important : le Worker actuel ne lit pas encore ce secret et ne réalise pas l'échange de code OAuth. Cette configuration seule ne rend donc pas le flux OAuth complet fonctionnel.
+
 ## Endpoints
 
 - `GET /` — project landing page and configuration status.
