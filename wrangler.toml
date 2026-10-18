@@ -4,4 +4,5 @@ compatibility_date = "2026-10-18"
 workers_dev = true
 
 [vars]
-ALLOWED_ORIGINS = ""
+EPSILON_ISSUER_URL = "https://epsilon.social"
+EPSILON_REDIRECT_URI = "https://antibotwall.reqeuss.com/oauth/epsilonsocial/callback"
