@@ -5,7 +5,7 @@ workers_dev = true
 
 [[kv_namespaces]]
 binding = "OAUTH_KV"
-id = "REPLACE_WITH_CLOUDFLARE_KV_NAMESPACE_ID"
+id = "4690bea9a2f445ec824982b02c75b409"
 
 [vars]
 EPSILON_ISSUER_URL = "https://epsilon.social"
