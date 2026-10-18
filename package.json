@@ -1,0 +1,9 @@
+{
+  "name": "epsilon-oauth",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cloudflare Worker API foundation for an independent Epsilon Social OAuth compatibility service",
+  "scripts": { "dev": "wrangler dev", "deploy": "wrangler deploy", "check": "node --check src/index.js" },
+  "devDependencies": { "wrangler": "^4.0.0" }
+}
