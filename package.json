@@ -1,6 +1,6 @@
 {
   "name": "epsilon-oauth",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "Unofficial Epsilon Social OAuth 2.0 broker for Cloudflare Workers",
