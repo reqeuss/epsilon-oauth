@@ -8,18 +8,18 @@ A small, unofficial Cloudflare Worker that starts the OAuth 2.0 authorization fl
 - Starts the upstream Epsilon Social authorization flow at `/login`.
 - Requires a client-generated `state` value and passes it through unchanged.
 - Supports optional PKCE with `S256`.
-- Uses the registered AntiBotWall callback by default: `https://antibotwall.reqeuss.com/oauth/epsilonsocial/callback`.
+- Uses the registered AntiBotWall callback by default: `https://example.com/oauth/callback`.
 - Includes a small `/health` endpoint.
 
 **Architecture note:** this repository is an OAuth login redirect/entry point, not an OAuth provider. Epsilon Social issues the authorization code; AntiBotWall's callback must validate `state` and exchange the code for a token server-side. The callback URI registered in Epsilon Social must exactly match the URI configured here. This Worker does not create Epsilon accounts, issue its own tokens, or validate user identity.
 
 ## Configuration
 
-Set these as Cloudflare Worker environment variables (or local development variables):
+Set these as Cloudflare Worker environment variables (or local development variables). The service is intended to be hosted once by its maintainer; end users should not need to run or host anything.
 
 - `EPSILON_CLIENT_ID` — application ID from Epsilon Social.
 - `EPSILON_ISSUER_URL` — optional; defaults to `https://epsilon.social`. Only this HTTPS host is accepted.
-- `EPSILON_REDIRECT_URI` — optional; defaults to the AntiBotWall callback above. Must be HTTPS on `antibotwall.reqeuss.com`.
+- `EPSILON_REDIRECT_URI` — optional; defaults to the AntiBotWall callback above. Must be a valid HTTPS callback URI registered for the Epsilon application. The repository's `example.com` value is only a placeholder and will not work until replaced with the exact URI registered on Epsilon Social.
 
 The Epsilon application **client secret must never be placed in this repository or sent to the browser**. This Worker does not need it for the redirect step. Keep it in AntiBotWall's server-side secret store, where the callback exchanges the authorization code.
 
@@ -28,7 +28,7 @@ For local development, use a private `.dev.vars` file (do not commit it):
 ```dotenv
 EPSILON_CLIENT_ID=your_application_id
 EPSILON_ISSUER_URL=https://epsilon.social
-EPSILON_REDIRECT_URI=https://antibotwall.reqeuss.com/oauth/epsilonsocial/callback
+EPSILON_REDIRECT_URI=https://example.com/oauth/callback
 ```
 
 ## Endpoints
@@ -51,7 +51,7 @@ npm run check
 npm run dev
 ```
 
-No deployment has been performed. Before using this with real users, test the authorization URL against the registered Epsilon application and verify AntiBotWall's callback, state validation, token exchange, and error handling end to end.
+No deployment has been performed. Before using this with real users, replace the example callback with the exact redirect URI registered in Epsilon Social and test the authorization URL and callback end to end.
 
 ## License
 
