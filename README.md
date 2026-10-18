@@ -1,72 +1,66 @@
 # Epsilon OAuth
 
-A small, unofficial Cloudflare Worker that starts the OAuth 2.0 authorization flow on Epsilon Social. It is not affiliated with or endorsed by Epsilon Social.
+OAuth 2.0 authorization broker for third-party apps, hosted as a Cloudflare Worker. Independent and unofficial; not affiliated with Epsilon Social.
 
-## What it does
+## What is implemented
 
-- Serves a styled French landing page at `/`.
-- Starts the upstream Epsilon Social authorization flow at `/login`.
-- Requires a client-generated `state` value and passes it through unchanged.
-- Supports optional PKCE with `S256`.
-- Uses the registered AntiBotWall callback by default: `https://example.com/oauth/callback`.
-- Includes a small `/health` endpoint.
+- Epsilon Social authorization-code login and server-side token exchange.
+- User profile lookup through Epsilon Social `/oauth/userinfo`.
+- Consent page showing the connected profile, avatar when available, app name and requested scopes.
+- Registered clients with HTTPS redirect URI allowlists.
+- One-time short-lived authorization codes, optional PKCE S256, expiring bearer tokens, userinfo and revocation endpoints.
+- OAuth metadata at `/.well-known/oauth-authorization-server` and `/.well-known/openid-configuration`.
 
-**Architecture note:** this repository is an OAuth login redirect/entry point, not an OAuth provider. Epsilon Social issues the authorization code; AntiBotWall's callback must validate `state` and exchange the code for a token server-side. The callback URI registered in Epsilon Social must exactly match the URI configured here. This Worker does not create Epsilon accounts, issue its own tokens, or validate user identity.
+**The upstream Epsilon API must be tested against the actual app credentials before treating production as verified.** Its callback must match exactly.
 
-## Configuration
+## Cloudflare setup
 
-Set these as Cloudflare Worker environment variables (or local development variables). The service is intended to be hosted once by its maintainer; end users should not need to run or host anything.
+1. Create a KV namespace and put its returned ID into `wrangler.toml` instead of `REPLACE_WITH_CLOUDFLARE_KV_NAMESPACE_ID`.
+2. Set the Worker custom domain to `epsilon-social.oauth.reqeuss.com`.
+3. In the Epsilon Social developer settings, register this exact callback URL:
+   `https://epsilon-social.oauth.reqeuss.com/oauth/callback`
+4. Configure the application ID and callback as Worker variables:
+   - `EPSILON_CLIENT_ID`: the Epsilon Social app's client ID
+   - `EPSILON_REDIRECT_URI`: `https://epsilon-social.oauth.reqeuss.com/oauth/callback`
+   - `EPSILON_ISSUER_URL`: `https://epsilon.social`
+5. Add secrets using Wrangler or the Cloudflare dashboard; never commit them:
+   ```sh
+   npx wrangler secret put EPSILON_CLIENT_SECRET
+   npx wrangler secret put OAUTH_ADMIN_SECRET
+   ```
+6. Deploy with `npm run deploy`, then visit `/health`. It should report `configured: true`.
 
-- `EPSILON_CLIENT_ID` — application ID from Epsilon Social.
-- `EPSILON_ISSUER_URL` — optional; defaults to `https://epsilon.social`. Only this HTTPS host is accepted.
-- `EPSILON_REDIRECT_URI` — optional; defaults to the AntiBotWall callback above. Must be a valid HTTPS callback URI registered for the Epsilon application. The repository's `example.com` value is only a placeholder and will not work until replaced with the exact URI registered on Epsilon Social.
+Build/check command: `npm run check`. Deploy command: `npm run deploy`.
 
-The Epsilon application **client secret must never be placed in this repository or sent to the browser**. This Worker does not need it for the redirect step. Keep it in AntiBotWall's server-side secret store, where the callback exchanges the authorization code.
+## Register a client application
 
-For local development, use a private `.dev.vars` file (do not commit it):
+Call `POST /admin/clients` with the admin secret as a Bearer token. Use only HTTPS callback URLs you control.
 
-```dotenv
-EPSILON_CLIENT_ID=your_application_id
-EPSILON_ISSUER_URL=https://epsilon.social
-EPSILON_REDIRECT_URI=https://example.com/oauth/callback
+```sh
+curl -X POST https://epsilon-social.oauth.reqeuss.com/admin/clients \
+  -H "Authorization: Bearer YOUR_OAUTH_ADMIN_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"My app","redirect_uris":["https://app.example.com/oauth/callback"]}'
 ```
 
-### Secret de l'application Epsilon
+The response contains `client_id` and `client_secret`. Save the secret immediately; it is returned only once. Never put it in frontend code.
 
-Quand le Worker implémentera l'échange du code OAuth côté serveur, ajoute le secret de l'application Epsilon sous le nom **`EPSILON_CLIENT_SECRET`**. Ne le mets jamais dans `wrangler.toml`, dans `.dev.vars` commité, dans le code côté navigateur ou dans GitHub.
+## OAuth flow for client apps
 
-**Dans Cloudflare (lors du déploiement) :**
-1. Ouvre **Workers & Pages** et sélectionne le Worker Epsilon OAuth.
-2. Va dans **Settings → Variables and Secrets** (le libellé peut varier).
-3. Ajoute `EPSILON_CLIENT_SECRET`, colle la valeur du secret Epsilon et choisis le type **Secret**.
-4. Enregistre, puis redéploie si Cloudflare le demande.
+1. Generate a cryptographically random `state` (at least 16 URL-safe characters).
+2. Redirect the user to:
+   `/oauth/authorize?response_type=code&client_id=...&redirect_uri=...&scope=profile&state=...`
+3. Prefer PKCE S256: include `code_challenge` and `code_challenge_method=S256`; save the matching verifier in the client app.
+4. The user logs in on Epsilon Social, reviews the consent screen, then returns to the registered callback with `code` and `state`.
+5. On your backend, exchange the code at `POST /oauth/token` using `grant_type=authorization_code`, `code`, `redirect_uri`, and client authentication. Include `code_verifier` if PKCE was used.
+6. Fetch `GET /oauth/userinfo` with `Authorization: Bearer ACCESS_TOKEN`.
 
-**En local avec Wrangler :** utilise un fichier `.dev.vars` non suivi par Git et ajoute `EPSILON_CLIENT_SECRET=ton_secret`. Vérifie que `.dev.vars` est dans `.gitignore`.
+Example response from userinfo: `sub`, `username`, `name`, and `picture` (when Epsilon provides an HTTPS avatar URL).
 
-> Important : le Worker actuel ne lit pas encore ce secret et ne réalise pas l'échange de code OAuth. Cette configuration seule ne rend donc pas le flux OAuth complet fonctionnel.
+## Security notes
 
-## Endpoints
-
-- `GET /` — project landing page and configuration status.
-- `GET /health` — JSON service status.
-- `GET /login?state=...` — redirect to Epsilon Social authorization. `state` must be generated by the client application, unpredictable, and validated by the callback.
-- `GET /oauth/authorize`, `/oauth/token`, `/oauth/userinfo` — deliberately return `501 not_an_oauth_provider`; this project does not issue its own OAuth tokens.
-- Unknown paths return JSON `404`.
-
-Optional PKCE parameters: `code_challenge` and `code_challenge_method=S256`. If supplied, the challenge must be a valid base64url SHA-256 challenge.
-
-## Local checks
-
-Requires Node.js:
-
-```bash
-npm install
-npm run check
-npm run dev
-```
-
-No deployment has been performed. Before using this with real users, replace the example callback with the exact redirect URI registered in Epsilon Social and test the authorization URL and callback end to end.
-
-## License
-
-No license has been selected yet. The project is unofficial; do not imply endorsement by Epsilon Social.
+- Client registration is protected by `OAUTH_ADMIN_SECRET`.
+- The Worker stores client secret hashes, short-lived authorization codes and hashed access tokens in KV.
+- The app's Epsilon client secret stays server-side.
+- KV is eventually consistent; this simple implementation uses one-time random codes and deletion but is not a substitute for a strongly consistent authorization database under high concurrency.
+- Only request scopes that your application genuinely needs. The current broker supports `profile` and `read`; verify the upstream Epsilon scope semantics before production use.
